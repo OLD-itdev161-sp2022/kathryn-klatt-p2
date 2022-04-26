@@ -7,11 +7,8 @@ async function main(){
       const client  = new MongoClient(uri);
       try{
       await client.connect();
-      await updateListingByName(client, "Ribeira Charming Duplex", {
-house_rules: "no dogs"
-      })
-    }
-      catch(e){
+      await printCheapestSuburbs(client,"Australia", "Sydney", 10);
+      }catch(e){
           console.error(e);
       } finally {
           await client.close();
@@ -19,6 +16,48 @@ house_rules: "no dogs"
 }
 
 main().catch(console.error);
+
+// Call Aggregation
+
+async function printCheapestSuburbs(client, country, market, max){
+  //Create pipeline
+  const pipeline = [
+    
+      {
+        $match: {
+          'bedrooms': 1,
+          "address.country": country,
+          "address.market": market,
+          "address.suburb": {
+            $exists: 1,
+            $ne: "",
+          },
+          room_type: "Entire home/apt",
+        },
+      },
+      {
+        '$group': {
+          '_id': "$address.suburb",
+          'averagePrice': {
+            '$avg': "$price",
+          }
+        }
+      },
+      {
+        '$sort': {
+          'averagePrice': 1,
+        },
+      },
+      {
+        '$limit': max,
+      }
+    ];
+
+  const aggCursor = client.db("sample_airbnb").collection("listingsAndReviews").aggregate(pipeline);
+
+  await aggCursor.forEach(airbnbListing =>{console.log(`${airbnbListing._id}: ${airbnbListing.averagePrice}`);
+})
+}
 
 // Update listing by Name
 
